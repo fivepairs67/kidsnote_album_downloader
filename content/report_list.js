@@ -5,11 +5,17 @@ function findReportApiFromPerformance() {
   const entries = performance.getEntriesByType('resource').map((e) => e.name);
   const hit = entries.find((u) => /\/api\/v1_2\/children\/\d+\/reports\//.test(u));
   if (!hit) return null;
+  const u = new URL(hit);
   const m = hit.match(/\/api\/v1_2\/children\/(\d+)\/reports\//);
   if (!m) return null;
   const childId = m[1];
   const baseUrl = `https://www.kidsnote.com/api/v1_2/children/${childId}/reports/`;
-  return { childId, baseUrl, sampleUrl: hit };
+  const defaultQuery = {};
+  for (const [k, v] of u.searchParams.entries()) {
+    if (k === 'page' || k === 'page_size' || k === 'tz' || k === 'child') continue;
+    defaultQuery[k] = v;
+  }
+  return { childId, baseUrl, sampleUrl: hit, defaultQuery };
 }
 
 function findFirstNumber(obj, min = 1000) {
@@ -79,7 +85,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       if (!info) {
         const childId = await detectChildIdFallback();
         if (childId && await validateChildId(childId)) {
-          info = { childId: String(childId), baseUrl: `https://www.kidsnote.com/api/v1_2/children/${childId}/reports/`, sampleUrl: null };
+          info = { childId: String(childId), baseUrl: `https://www.kidsnote.com/api/v1_2/children/${childId}/reports/`, sampleUrl: null, defaultQuery: {} };
         }
       }
       sendResponse({ ok: !!info, info });

@@ -130,7 +130,7 @@ function assertAllowedDownloadUrl(rawUrl) {
 async function getAlbumApiInfo(tabId) {
   const res = await chrome.tabs.sendMessage(tabId, { kind: 'GET_ALBUM_API_INFO' });
   if (!res?.ok || !res.info?.baseUrl) throw new Error('CANT_DETECT_ALBUM_API');
-  return res.info; // {childId, baseUrl, sampleUrl}
+  return res.info; // {childId, baseUrl, sampleUrl, defaultQuery}
 }
 
 async function fetchAlbumsJsonViaTab(tabId, url) {
@@ -142,7 +142,7 @@ async function fetchAlbumsJsonViaTab(tabId, url) {
 async function getReportApiInfo(tabId) {
   const res = await chrome.tabs.sendMessage(tabId, { kind: 'GET_REPORT_API_INFO' });
   if (!res?.ok || !res.info?.baseUrl) throw new Error('CANT_DETECT_REPORT_API');
-  return res.info; // {childId, baseUrl, sampleUrl}
+  return res.info; // {childId, baseUrl, sampleUrl, defaultQuery}
 }
 
 async function fetchReportsJsonViaTab(tabId, url) {
@@ -167,6 +167,20 @@ function ymInRange(ym, fromYm, toYm) {
   if (fromYm && /^20\d{2}-\d{2}$/.test(fromYm) && ym < fromYm) return false;
   if (toYm && /^20\d{2}-\d{2}$/.test(toYm) && ym > toYm) return false;
   return true;
+}
+
+function buildPagedApiUrl(baseUrl, defaultQuery, opts) {
+  const url = new URL(baseUrl);
+  const defaults = defaultQuery && typeof defaultQuery === 'object' ? defaultQuery : {};
+  for (const [k, v] of Object.entries(defaults)) {
+    if (v == null || v === '') continue;
+    url.searchParams.set(k, String(v));
+  }
+  if (opts?.pageToken) url.searchParams.set('page', String(opts.pageToken));
+  url.searchParams.set('page_size', String(opts.pageSize));
+  url.searchParams.set('tz', String(opts.tz));
+  url.searchParams.set('child', String(opts.childId));
+  return url.toString();
 }
 
 async function downloadAlbumFromApi(root, album, index, total, filters, startTs, counters) {
@@ -257,7 +271,7 @@ async function startDownloadAlbums(tabId, root, filters) {
   const counters = { albumsDownloaded: 0, albumsSkipped: 0, photosDownloaded: 0, videosDownloaded: 0, errors: 0, lastError: '' };
 
   // Stream scan pages and download without storing the full album list (avoids chrome.storage quota).
-  const { childId, baseUrl } = await getAlbumApiInfo(tabId);
+  const { childId, baseUrl, defaultQuery } = await getAlbumApiInfo(tabId);
 
   // Kidsnote API supports larger page_size (tested: 100).
   const pageSize = 100;
@@ -267,11 +281,8 @@ async function startDownloadAlbums(tabId, root, filters) {
   let seenTokens = new Set();
 
   // first page (total count is unreliable on some accounts)
-  const firstUrl = new URL(baseUrl);
-  firstUrl.searchParams.set('page_size', String(pageSize));
-  firstUrl.searchParams.set('tz', tz);
-  firstUrl.searchParams.set('child', childId);
-  const first = await fetchAlbumsJsonViaTab(tabId, firstUrl.toString());
+  const firstUrl = buildPagedApiUrl(baseUrl, defaultQuery, { childId, pageSize, tz });
+  const first = await fetchAlbumsJsonViaTab(tabId, firstUrl);
 
   // Only trust count if it looks plausible (> page size). Otherwise show "?".
   const total = (typeof first.count === 'number' && first.count > (first.results?.length || 0)) ? first.count : null;
@@ -339,13 +350,8 @@ async function startDownloadAlbums(tabId, root, filters) {
 
     if (doneRange) break;
 
-    const url = new URL(baseUrl);
-    url.searchParams.set('page_size', String(pageSize));
-    url.searchParams.set('tz', tz);
-    url.searchParams.set('child', childId);
-    url.searchParams.set('page', pageToken);
-
-    const j = await fetchAlbumsJsonViaTab(tabId, url.toString());
+    const url = buildPagedApiUrl(baseUrl, defaultQuery, { childId, pageSize, tz, pageToken });
+    const j = await fetchAlbumsJsonViaTab(tabId, url);
     await handleResults(j.results);
     pageToken = j.next;
   }
@@ -518,18 +524,15 @@ async function startDownloadReports(tabId, root, filters) {
 
   const counters = { itemsDownloaded: 0, itemsSkipped: 0, photosDownloaded: 0, videosDownloaded: 0, filesDownloaded: 0, errors: 0, lastError: '' };
 
-  const { childId, baseUrl } = await getReportApiInfo(tabId);
+  const { childId, baseUrl, defaultQuery } = await getReportApiInfo(tabId);
   const pageSize = 100;
   const tz = 'Asia/Seoul';
 
   let pageToken = null;
   let seenTokens = new Set();
 
-  const firstUrl = new URL(baseUrl);
-  firstUrl.searchParams.set('page_size', String(pageSize));
-  firstUrl.searchParams.set('tz', tz);
-  firstUrl.searchParams.set('child', childId);
-  const first = await fetchReportsJsonViaTab(tabId, firstUrl.toString());
+  const firstUrl = buildPagedApiUrl(baseUrl, defaultQuery, { childId, pageSize, tz });
+  const first = await fetchReportsJsonViaTab(tabId, firstUrl);
   const total = (typeof first.count === 'number' && first.count > (first.results?.length || 0)) ? first.count : null;
 
   let processed = 0;
@@ -577,13 +580,8 @@ async function startDownloadReports(tabId, root, filters) {
     seenTokens.add(pageToken);
     if (doneRange) break;
 
-    const url = new URL(baseUrl);
-    url.searchParams.set('page_size', String(pageSize));
-    url.searchParams.set('tz', tz);
-    url.searchParams.set('child', childId);
-    url.searchParams.set('page', pageToken);
-
-    const j = await fetchReportsJsonViaTab(tabId, url.toString());
+    const url = buildPagedApiUrl(baseUrl, defaultQuery, { childId, pageSize, tz, pageToken });
+    const j = await fetchReportsJsonViaTab(tabId, url);
     await handleResults(j.results);
     pageToken = j.next;
   }
