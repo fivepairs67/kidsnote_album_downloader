@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "Kidsnote Album Downloader",
+  "version": "0.1.0",
+  "description": "키즈노트 앨범/알림장의 사진, 동영상, 본문을 날짜-제목 폴더로 다운로드합니다.",
+  "action": {
+    "default_title": "Kidsnote Downloader",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
+    },
+    "default_popup": "popup.html"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": [
+    "downloads",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://www.kidsnote.com/*",
+    "https://kids-wi.kakaocdn.net/*",
+    "https://kids-i.kakaocdn.net/*",
+    "https://kids-v.kakaocdn.net/*"
+  ],
+  "background": {
+    "service_worker": "sw.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.kidsnote.com/service/album*"],
+      "js": ["content/album_list.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.kidsnote.com/service/report*"],
+      "js": ["content/report_list.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
