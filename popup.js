@@ -2,10 +2,13 @@ const $ = (id) => document.getElementById(id);
 
 const LOG_MAX_LINES = 200;
 const LOG_SESSION_KEY = 'popupLogLines';
-const STATUS_STORAGE_AREA = chrome.storage?.session ? 'session' : 'local';
-const statusStorage = chrome.storage?.session || chrome.storage.local;
+const STATUS_STORAGE_AREA = 'session';
+const statusStorage = chrome.storage?.session || null;
 let logLines = [];
 const statusState = { progressText: '', finalReport: '' };
+
+// Clear legacy persistent keys from older versions.
+void chrome.storage.local.remove(['progressText', 'finalReport']).catch(() => {});
 
 function renderLogs() {
   const el = $('log');
@@ -261,12 +264,17 @@ $('stop').addEventListener('click', async () => {
 });
 
 // Live progress via storage (session by default so it resets after full browser restart)
-statusStorage.get(['progressText','finalReport']).then((o) => {
-  statusState.progressText = o.progressText || '';
-  statusState.finalReport = o.finalReport || '';
-  renderStatus(statusState.progressText, statusState.finalReport);
-  setBadge(statusState.progressText, statusState.finalReport);
-});
+if (statusStorage) {
+  statusStorage.get(['progressText','finalReport']).then((o) => {
+    statusState.progressText = o.progressText || '';
+    statusState.finalReport = o.finalReport || '';
+    renderStatus(statusState.progressText, statusState.finalReport);
+    setBadge(statusState.progressText, statusState.finalReport);
+  });
+} else {
+  renderStatus('', '');
+  setBadge('', '');
+}
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== STATUS_STORAGE_AREA) return;
   if (changes.progressText) {

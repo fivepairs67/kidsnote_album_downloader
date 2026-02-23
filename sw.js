@@ -4,6 +4,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let stopRequested = false;
 let downloadRunning = false;
+let progressTextMemory = '';
+let finalReportMemory = '';
+
+const ALLOWED_DOWNLOAD_HOST_SUFFIXES = ['kidsnote.com', 'kakaocdn.net'];
 
 function sanitizeSegment(s, maxLen = 80) {
   // Make a filesystem-safe segment across platforms (esp. Windows downloads).
@@ -49,19 +53,15 @@ function fmtElapsed(ms) {
 }
 
 async function setProgress(text) {
-  if (chrome.storage?.session) {
-    await setSessionStored('progressText', text);
-    return;
-  }
-  await setStored('progressText', text);
+  progressTextMemory = text || '';
+  if (!chrome.storage?.session) return;
+  await setSessionStored('progressText', progressTextMemory);
 }
 
 async function setFinalReport(text) {
-  if (chrome.storage?.session) {
-    await setSessionStored('finalReport', text);
-    return;
-  }
-  await setStored('finalReport', text);
+  finalReportMemory = text || '';
+  if (!chrome.storage?.session) return;
+  await setSessionStored('finalReport', finalReportMemory);
 }
 
 function makeDataUrl(mime, text) {
@@ -102,7 +102,29 @@ async function safeDownload(opName, context, fn, retryFn) {
 }
 
 async function downloadUrl(filename, url) {
+  assertAllowedDownloadUrl(url);
   return chrome.downloads.download({ url, filename, conflictAction: 'uniquify', saveAs: false });
+}
+
+function hostMatchesSuffix(hostname, suffix) {
+  return hostname === suffix || hostname.endsWith(`.${suffix}`);
+}
+
+function assertAllowedDownloadUrl(rawUrl) {
+  let u;
+  try {
+    u = new URL(rawUrl);
+  } catch {
+    throw new Error('INVALID_DOWNLOAD_URL');
+  }
+  if (u.protocol !== 'https:') {
+    throw new Error('UNSAFE_URL_SCHEME');
+  }
+  const host = (u.hostname || '').toLowerCase();
+  const ok = ALLOWED_DOWNLOAD_HOST_SUFFIXES.some((suffix) => hostMatchesSuffix(host, suffix));
+  if (!ok) {
+    throw new Error(`UNALLOWED_DOWNLOAD_HOST:${host}`);
+  }
 }
 
 async function getAlbumApiInfo(tabId) {

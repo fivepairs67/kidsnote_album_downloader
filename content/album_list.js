@@ -2,9 +2,6 @@
 // Kidsnote album list is rendered without <a href> per item.
 // We detect the underlying API endpoint from resource timing.
 
-// Debug marker so we can verify via Browser Relay that the content script loaded.
-document.documentElement.dataset.kidsnoteDlAlbumList = '1';
-
 function findAlbumApiFromPerformance() {
   const entries = performance.getEntriesByType('resource').map((e) => e.name);
   const hit = entries.find((u) => /\/api\/v1_3\/children\/\d+\/albums\//.test(u));
@@ -61,9 +58,20 @@ async function validateChildId(childId) {
   return !!(r && r.ok);
 }
 
+function isAllowedAlbumsApiUrl(raw) {
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== 'https:') return false;
+    if (u.hostname !== 'www.kidsnote.com') return false;
+    return /^\/api\/v1_3\/children\/\d+\/albums\/?$/.test(u.pathname);
+  } catch {
+    return false;
+  }
+}
+
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.kind === 'PING_KN_DL') {
-    sendResponse({ ok: true, url: location.href, hasAlbumListMarker: document.documentElement.dataset.kidsnoteDlAlbumList === '1' });
+    sendResponse({ ok: true, url: location.href });
     return true;
   }
 
@@ -86,6 +94,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.kind === 'FETCH_ALBUMS_PAGE') {
     (async () => {
       try {
+        if (!isAllowedAlbumsApiUrl(msg.url)) {
+          sendResponse({ ok: false, error: 'DISALLOWED_FETCH_URL' });
+          return;
+        }
         const r = await fetch(msg.url, { credentials: 'include' });
         const text = await r.text();
         let json = null;

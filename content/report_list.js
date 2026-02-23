@@ -1,8 +1,6 @@
 // Runs on https://www.kidsnote.com/service/report*
 // Provides report (알림장) API access from the page origin so cookies/auth are included.
 
-document.documentElement.dataset.kidsnoteDlReportList = '1';
-
 function findReportApiFromPerformance() {
   const entries = performance.getEntriesByType('resource').map((e) => e.name);
   const hit = entries.find((u) => /\/api\/v1_2\/children\/\d+\/reports\//.test(u));
@@ -58,9 +56,20 @@ async function validateChildId(childId) {
   return !!(r && r.ok);
 }
 
+function isAllowedReportsApiUrl(raw) {
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== 'https:') return false;
+    if (u.hostname !== 'www.kidsnote.com') return false;
+    return /^\/api\/v1_2\/children\/\d+\/reports\/?$/.test(u.pathname);
+  } catch {
+    return false;
+  }
+}
+
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.kind === 'PING_KN_DL_REPORT') {
-    sendResponse({ ok: true, url: location.href, hasReportMarker: document.documentElement.dataset.kidsnoteDlReportList === '1' });
+    sendResponse({ ok: true, url: location.href });
     return true;
   }
 
@@ -81,6 +90,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.kind === 'FETCH_REPORTS_PAGE') {
     (async () => {
       try {
+        if (!isAllowedReportsApiUrl(msg.url)) {
+          sendResponse({ ok: false, error: 'DISALLOWED_FETCH_URL' });
+          return;
+        }
         const r = await fetch(msg.url, { credentials: 'include' });
         const text = await r.text();
         let json = null;
