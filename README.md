@@ -1,4 +1,4 @@
-# 👶 Kidsnote Downloader (앨범/알림장 다운로더)
+# 👶 Kidsnote Album Downloader (키즈노트 앨범/알림장 다운로더)
 
 [![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-4285F4?style=flat-square&logo=Google-Chrome&logoColor=white)](#) [![License](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](./LICENSE)
 
@@ -18,9 +18,11 @@
   - 알림장 첨부파일: `files/*`
 - 🛑 **중복 실행 방지**: 다운로드 중 재클릭해도 프로세스를 중복 실행하지 않습니다.
 
-## 🛠 설치 방법
+## 🛠 설치 방법 (크롬 웹스토어)
 
-현재 크롬 웹 스토어에 정식 등록되어 있지 않으므로 **개발자 모드**를 통해 설치해야 합니다.
+1. 크롬 웹스토어 'https://chromewebstore.google.com/' 에서 본 익스텐션을 설치합니다.
+
+## 🛠 설치 방법 (깃허브)
 
 1. 확장 프로그램 소스코드를 먼저 준비합니다.
    - 깃허브 저장소 접속: `https://github.com/fivepairs67/kidsnote_album_downloader`
